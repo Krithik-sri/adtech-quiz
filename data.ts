@@ -130,5 +130,70 @@ export const quizQuestions: Question[] = [
     ],
     correctAnswer: 2,
     explanation: "For branding, knowing that a real human actually saw the ad (Viewable Impression) is more critical than direct clicks."
+  },
+  {
+    id: 11,
+    category: "Buying",
+    question: "What does 'Programmatic Direct' typically involve?",
+    options: [
+      "Real-time bidding on an open exchange.",
+      "Guaranteed ad inventory sold directly between buyer and seller via automation.",
+      "Buying ads manually through email insertion orders.",
+      "Targeting users randomly across the web."
+    ],
+    correctAnswer: 1,
+    explanation: "Programmatic Direct automates the direct buying process, offering guaranteed inventory without an auction."
+  },
+  {
+    id: 12,
+    category: "Metrics",
+    question: "What does 'eCPM' stand for?",
+    options: [
+      "Effective Cost Per Mille",
+      "Estimated Cost Per Million",
+      "Electronic Cost Per Minute",
+      "Efficient Clicks Per Month"
+    ],
+    correctAnswer: 0,
+    explanation: "eCPM (Effective Cost Per Mille) measures the revenue generated per 1,000 impressions, regardless of the buying model (CPC, CPA, etc.)."
+  },
+  {
+    id: 13,
+    category: "Privacy",
+    question: "What is the main purpose of 'ads.txt'?",
+    options: [
+      "To improve ad creative load times.",
+      "To prevent unauthorized selling of a publisher's inventory (Domain Spoofing).",
+      "To store user cookies securely.",
+      "To text users advertisements."
+    ],
+    correctAnswer: 1,
+    explanation: "ads.txt (Authorized Digital Sellers) is a file publishers host to list who is authorized to sell their inventory, fighting fraud."
+  },
+  {
+    id: 14,
+    category: "Tech",
+    question: "What is a 'Vast Tag' (VAST) used for?",
+    options: [
+      "Tracking banner clicks.",
+      "Serving video ads and communicating between video players and ad servers.",
+      "Optimizing SEO keywords.",
+      "Validating email addresses."
+    ],
+    correctAnswer: 1,
+    explanation: "VAST (Video Ad Serving Template) is a standard script that tells video players which video ad to play and how to track it."
+  },
+  {
+    id: 15,
+    category: "Basics",
+    question: "What is 'frequency capping'?",
+    options: [
+      "Limiting the number of times a specific user sees an ad.",
+      "Capping the maximum bid price in an auction.",
+      "Limiting the speed of the website loading.",
+      "Restricting the number of ads on a single page."
+    ],
+    correctAnswer: 0,
+    explanation: "Frequency capping ensures a user isn't annoyed by seeing the same ad too many times, improving user experience and ROI."
   }
 ];

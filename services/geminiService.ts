@@ -7,7 +7,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getAIExplanation = async (topic: string, userError: string): Promise<string> => {
   try {
-    const model = "gemini-3-flash-preview"; 
+    const model = "gemini-2.5-flash"; 
     
     const prompt = `
       You are an expert AdTech professor. A student is taking a quiz based on "The AdTech Book".

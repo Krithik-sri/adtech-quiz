@@ -7,6 +7,20 @@ export interface Question {
   explanation: string;
 }
 
+export interface CategoryStat {
+  correct: number;
+  total: number;
+}
+
+export interface User {
+  username: string;
+  totalXp: number;
+  currentLevel: number;
+  highestStreak: number;
+  gamesPlayed: number;
+  categoryStats: Record<string, CategoryStat>;
+}
+
 export interface PowerupInventory {
   fiftyFifty: number;
   doubleBid: number;
@@ -14,10 +28,10 @@ export interface PowerupInventory {
 
 export interface QuizState {
   currentQuestionIndex: number;
-  xp: number; // Renamed from score
+  xp: number; // Session XP
   streak: number;
   level: number;
-  answers: { questionId: number; isCorrect: boolean; timeTaken: number }[];
+  answers: { questionId: number; isCorrect: boolean; timeTaken: number; category: string }[];
   isFinished: boolean;
   gameStarted: boolean;
   powerups: PowerupInventory;
@@ -26,6 +40,7 @@ export interface QuizState {
 }
 
 export enum GamePhase {
+  AUTH = 'AUTH',
   WELCOME = 'WELCOME',
   PLAYING = 'PLAYING',
   RESULTS = 'RESULTS'

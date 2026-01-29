@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { GamePhase, QuizState } from './types';
-import { quizQuestions } from './data';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { GamePhase, QuizState, User, Question } from './types';
+import { quizQuestions as initialQuestions } from './data';
 import { GlassCard } from './components/GlassCard';
 import { FluidBackground } from './components/FluidBackground';
 import { getAIExplanation } from './services/geminiService';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
+import { storageService } from './services/storageService';
+import { ResponsiveContainer, Tooltip, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 
 // --- Icons ---
 const TrophyIcon = () => (
@@ -33,7 +34,7 @@ const BrainIcon = () => (
 );
 
 // Leveling Config
-const LEVEL_THRESHOLDS = [0, 500, 1500, 3000, 5000, 10000];
+const LEVEL_THRESHOLDS = [0, 500, 1200, 2500, 5000, 10000];
 const LEVEL_TITLES = [
   "Intern", 
   "Media Planner", 
@@ -43,8 +44,31 @@ const LEVEL_TITLES = [
   "AdTech Tycoon"
 ];
 
+// Helper Component for Cyberpunk Stats
+const CyberStat = ({ label, value, subtext }: { label: string, value: string | number, subtext?: string }) => (
+  <div className="relative p-4 group">
+    {/* Bracket Borders */}
+    <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-gray-600 group-hover:border-gold-500 transition-colors"></div>
+    <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-gray-600 group-hover:border-gold-500 transition-colors"></div>
+    <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-gray-600 group-hover:border-gold-500 transition-colors"></div>
+    <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-gray-600 group-hover:border-gold-500 transition-colors"></div>
+    
+    <div className="text-[10px] text-gray-500 font-mono tracking-widest uppercase mb-1">{label}</div>
+    <div className="text-2xl font-bold text-white font-mono tracking-tight">{value}</div>
+    {subtext && <div className="text-[10px] text-gold-500/70 font-mono mt-1">{subtext}</div>}
+  </div>
+);
+
 export default function App() {
-  const [phase, setPhase] = useState<GamePhase>(GamePhase.WELCOME);
+  const [phase, setPhase] = useState<GamePhase>(GamePhase.AUTH);
+  const [user, setUser] = useState<User | null>(null);
+  const [usernameInput, setUsernameInput] = useState('');
+  
+  // Interaction Trigger for background animation
+  const [interactionTrigger, setInteractionTrigger] = useState(0);
+  
+  // Game State
+  const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [state, setState] = useState<QuizState>({
     currentQuestionIndex: 0,
     xp: 0,
@@ -63,22 +87,86 @@ export default function App() {
   const [aiTip, setAiTip] = useState<string>("");
   const [loadingAi, setLoadingAi] = useState(false);
 
-  const currentQ = quizQuestions[state.currentQuestionIndex];
-  const COLORS = ['#10B981', '#EF4444']; 
+  // Load user on mount
+  useEffect(() => {
+    const existingUser = storageService.getCurrentUser();
+    if (existingUser) {
+      setUser(existingUser);
+      setPhase(GamePhase.WELCOME);
+    }
+  }, []);
+
+  const handleInteraction = () => {
+    setInteractionTrigger(prev => prev + 1);
+  };
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!usernameInput.trim()) return;
+    handleInteraction();
+    const loggedInUser = storageService.login(usernameInput.trim());
+    setUser(loggedInUser);
+    setPhase(GamePhase.WELCOME);
+  };
+
+  const currentQ = questions[state.currentQuestionIndex];
 
   const getLevelInfo = (xp: number) => {
-    let level = 0;
+    let level = 1;
     for (let i = 0; i < LEVEL_THRESHOLDS.length; i++) {
       if (xp >= LEVEL_THRESHOLDS[i]) level = i + 1;
     }
+    // Cap level
+    if (level > LEVEL_TITLES.length) level = LEVEL_TITLES.length;
+    
     return {
       level,
-      title: LEVEL_TITLES[Math.min(level - 1, LEVEL_TITLES.length - 1)],
+      title: LEVEL_TITLES[level - 1],
       nextThreshold: LEVEL_THRESHOLDS[level] || 999999
     };
   };
 
+  // --- Derived Stats for Dashboard ---
+  const dashboardStats = useMemo(() => {
+    if (!user) return null;
+    
+    const nextLevel = getLevelInfo(user.totalXp);
+    const currentLevelBaseXP = LEVEL_THRESHOLDS[nextLevel.level - 1] || 0;
+    const nextLevelTargetXP = nextLevel.nextThreshold;
+    
+    const range = nextLevelTargetXP - currentLevelBaseXP;
+    const progressInLevel = user.totalXp - currentLevelBaseXP;
+    
+    const progressPercent = range > 0 
+        ? Math.min(100, Math.max(0, (progressInLevel / range) * 100)) 
+        : 100;
+
+    // Calculate Global Accuracy
+    let totalCorrect = 0;
+    let totalAttempts = 0;
+    if (user.categoryStats) {
+      Object.values(user.categoryStats).forEach(stat => {
+        totalCorrect += stat.correct;
+        totalAttempts += stat.total;
+      });
+    }
+    const globalAccuracy = totalAttempts > 0 ? Math.round((totalCorrect / totalAttempts) * 100) : 0;
+
+    return {
+      title: nextLevel.title,
+      level: nextLevel.level,
+      percent: progressPercent,
+      accuracy: globalAccuracy,
+      nextXP: nextLevelTargetXP - user.totalXp
+    };
+  }, [user]);
+
   const startGame = () => {
+    handleInteraction();
+    // Shuffle questions logic
+    const shuffled = [...initialQuestions].sort(() => Math.random() - 0.5);
+    setQuestions(shuffled);
+
     setState({
       currentQuestionIndex: 0,
       xp: 0,
@@ -96,10 +184,10 @@ export default function App() {
 
   const activateFiftyFifty = () => {
     if (state.powerups.fiftyFifty <= 0 || state.hiddenOptions.length > 0 || selectedOption !== null) return;
+    handleInteraction();
     
     const correct = currentQ.correctAnswer;
     const wrongIndices = currentQ.options.map((_, i) => i).filter(i => i !== correct);
-    // Shuffle and pick 2
     const shuffled = wrongIndices.sort(() => 0.5 - Math.random());
     const toHide = shuffled.slice(0, 2);
 
@@ -112,6 +200,7 @@ export default function App() {
 
   const activateDoubleBid = () => {
     if (state.powerups.doubleBid <= 0 || state.activeMultiplier || selectedOption !== null) return;
+    handleInteraction();
     setState(prev => ({
       ...prev,
       powerups: { ...prev.powerups, doubleBid: prev.powerups.doubleBid - 1 },
@@ -122,6 +211,7 @@ export default function App() {
   const handleAnswer = useCallback(async (optionIndex: number) => {
     setSelectedOption(optionIndex);
     setShowExplanation(true);
+    handleInteraction();
 
     const isCorrect = optionIndex === currentQ.correctAnswer;
     const newStreak = isCorrect ? state.streak + 1 : 0;
@@ -140,7 +230,12 @@ export default function App() {
       xp: newTotalXP,
       level,
       streak: newStreak,
-      answers: [...prev.answers, { questionId: currentQ.id, isCorrect, timeTaken: 0 }]
+      answers: [...prev.answers, { 
+        questionId: currentQ.id, 
+        isCorrect, 
+        timeTaken: 0,
+        category: currentQ.category 
+      }]
     }));
 
     if (!isCorrect) {
@@ -156,12 +251,46 @@ export default function App() {
     }
   }, [currentQ, state.streak, state.xp, state.activeMultiplier]);
 
-  const nextQuestion = () => {
+  const finishGame = () => {
+    handleInteraction();
+    
+    let finalXP = state.xp;
+    // PERFECT RUN BONUS: If user got ALL questions correct, ensure they level up.
+    // We check if number of correct answers equals total questions.
+    const correctAnswersCount = state.answers.filter(a => a.isCorrect).length;
+    const isPerfectRun = correctAnswersCount === questions.length && questions.length > 0;
+
+    if (isPerfectRun && user) {
+        const currentTotalXP = user.totalXp + finalXP;
+        const levelInfo = getLevelInfo(currentTotalXP);
+        // If there is a next level
+        if (levelInfo.nextThreshold < 999999) {
+            const xpNeededForNext = levelInfo.nextThreshold - currentTotalXP;
+            // Add what's needed plus a 50 XP buffer
+            if (xpNeededForNext > 0) {
+                finalXP += (xpNeededForNext + 50);
+            }
+        }
+    }
+
+    // Update State to show correct boosted XP in results
+    setState(prev => ({...prev, xp: finalXP}));
+
+    if (user) {
+      storageService.updateUserProgress(finalXP, state.streak, state.answers);
+      const updatedUser = storageService.getCurrentUser();
+      if (updatedUser) setUser(updatedUser);
+    }
+    setPhase(GamePhase.RESULTS);
+  };
+
+  const nextQuestion = async () => {
     setSelectedOption(null);
     setShowExplanation(false);
     setAiTip("");
+    handleInteraction();
     
-    if (state.currentQuestionIndex < quizQuestions.length - 1) {
+    if (state.currentQuestionIndex < questions.length - 1) {
       setState(prev => ({ 
         ...prev, 
         currentQuestionIndex: prev.currentQuestionIndex + 1,
@@ -169,157 +298,212 @@ export default function App() {
         activeMultiplier: false
       }));
     } else {
-      setPhase(GamePhase.RESULTS);
+      finishGame();
     }
   };
 
   const currentLevelInfo = getLevelInfo(state.xp);
-  const prevThreshold = LEVEL_THRESHOLDS[currentLevelInfo.level - 1] || 0;
-  const progressToNext = Math.min(100, Math.max(0, ((state.xp - prevThreshold) / (currentLevelInfo.nextThreshold - prevThreshold)) * 100));
+  
+  const hudLevelInfo = user ? getLevelInfo(user.totalXp + state.xp) : getLevelInfo(state.xp);
+  const hudPrevThreshold = LEVEL_THRESHOLDS[hudLevelInfo.level - 1] || 0;
+  const hudRange = hudLevelInfo.nextThreshold - hudPrevThreshold;
+  const hudProgress = (user ? (user.totalXp + state.xp) : state.xp) - hudPrevThreshold;
+  const progressToNext = hudRange > 0 ? Math.min(100, Math.max(0, (hudProgress / hudRange) * 100)) : 100;
+
+  // Prepare Radar Data
+  const radarData = user ? Object.keys(user.categoryStats || {}).map(cat => ({
+    subject: cat,
+    A: user.categoryStats[cat].total > 0 ? (user.categoryStats[cat].correct / user.categoryStats[cat].total) * 100 : 0,
+    fullMark: 100,
+  })) : [];
+  
+  const displayRadarData = radarData.length > 2 ? radarData : [
+      { subject: 'Basics', A: 40, fullMark: 100 },
+      { subject: 'Tech', A: 30, fullMark: 100 },
+      { subject: 'Buying', A: 20, fullMark: 100 },
+      { subject: 'Data', A: 50, fullMark: 100 },
+      { subject: 'Privacy', A: 10, fullMark: 100 },
+  ];
 
   // --- RENDERS ---
 
   return (
     <>
-      <FluidBackground phase={phase} />
+      {/* Global Background (Fixed Z-0) */}
+      <FluidBackground trigger={interactionTrigger} />
+      
       <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8 md:p-12 overflow-y-auto">
         
-        {phase === GamePhase.WELCOME && (
-          <div className="relative w-full max-w-5xl flex flex-col items-center">
-            {/* Background ambient glow spots for depth */}
-            <div className="absolute -top-32 -left-32 w-96 h-96 bg-gold-500/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen animate-pulse"></div>
-            <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-gray-500/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen"></div>
+        {phase === GamePhase.AUTH && (
+           <GlassCard noGlow={true} className="max-w-md w-full text-center p-10">
+             <div className="mb-8">
+               <h2 className="text-3xl font-black text-white uppercase tracking-widest mb-2">Identify</h2>
+               <p className="text-gray-400 text-sm">Enter your callsign to access the exchange.</p>
+             </div>
+             <form onSubmit={handleLogin} className="space-y-6">
+               <input 
+                 type="text" 
+                 value={usernameInput}
+                 onChange={(e) => setUsernameInput(e.target.value)}
+                 placeholder="AGENT NAME"
+                 className="w-full bg-black/50 border border-gray-700 rounded-xl px-6 py-4 text-white text-center font-mono text-lg focus:border-gold-500 focus:outline-none transition-colors placeholder:text-gray-700"
+               />
+               <button 
+                 type="submit"
+                 disabled={!usernameInput.trim()}
+                 className="w-full py-4 bg-gold-600 text-black font-bold uppercase tracking-widest rounded-xl hover:bg-gold-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+               >
+                 Connect
+               </button>
+             </form>
+           </GlassCard>
+        )}
 
-            <GlassCard className="w-full p-0 relative overflow-hidden border-0">
-               {/* Technical Grid Pattern Overlay */}
-               <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
+        {phase === GamePhase.WELCOME && user && dashboardStats && (
+          <div className="relative w-full max-w-7xl flex flex-col items-center animate-in fade-in duration-700">
+            {/* Main Dashboard Card - Translucent to show global grid */}
+            <GlassCard className="w-full p-0 relative overflow-hidden border-0 bg-black/20 backdrop-blur-md">
                
-               <div className="relative z-10 p-16 md:p-20 flex flex-col items-center text-center">
+               <div className="relative z-10 p-8 md:p-12 grid grid-cols-1 lg:grid-cols-3 gap-8">
                   
-                  {/* Status Bar */}
-                  <div className="w-full flex justify-between items-center mb-12 text-xs font-mono tracking-[0.2em] text-gray-500 uppercase border-b border-gray-800 pb-4">
-                     <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_#10b981]"></span>
-                        System Online
-                     </div>
-                     <div>v2.5.0_RELEASE</div>
+                  {/* Column 1: Identity & Rank */}
+                  <div className="flex flex-col gap-6">
+                      <div className="border border-gray-800 bg-black/40 p-6 rounded-sm relative overflow-hidden backdrop-blur-sm">
+                          <div className="absolute top-0 right-0 p-2 opacity-50"><div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div></div>
+                          <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-2">Operator ID</div>
+                          <h1 className="text-4xl font-black text-white uppercase tracking-tighter truncate">{user.username}</h1>
+                          <div className="mt-4 flex items-center gap-2 text-gold-500 font-mono text-xs">
+                             <span className="px-1 bg-gold-500/10 border border-gold-500/30">SECURE</span>
+                             <span>{new Date().toLocaleDateString()}</span>
+                          </div>
+                      </div>
+
+                      <div className="border border-gray-800 bg-black/40 p-6 rounded-sm flex-1 flex flex-col justify-center backdrop-blur-sm">
+                          <div className="flex justify-between items-end mb-4">
+                              <div>
+                                  <div className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Clearance Level</div>
+                                  <div className="text-xl font-bold text-white uppercase">{dashboardStats.title}</div>
+                              </div>
+                              <div className="text-3xl font-black text-gray-700 font-mono">0{dashboardStats.level}</div>
+                          </div>
+                          
+                          <div className="relative h-2 bg-gray-900 w-full rounded-sm overflow-hidden mb-2">
+                              <div className="absolute top-0 left-0 h-full bg-gold-500" style={{ width: `${dashboardStats.percent}%` }}></div>
+                          </div>
+                          <div className="text-right text-[10px] font-mono text-gray-500 uppercase">{dashboardStats.nextXP} XP to promotion</div>
+                      </div>
                   </div>
 
-                  {/* Hero Text */}
-                  <div className="space-y-2 mb-10 transform hover:scale-[1.02] transition-transform duration-500">
-                    <h1 className="text-6xl md:text-8xl font-thin text-white tracking-[0.2em] leading-none">
-                      ADTECH
-                    </h1>
-                    <h1 className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gold-400 via-yellow-200 to-gold-500 tracking-tight leading-none drop-shadow-2xl">
-                      MASTER
-                    </h1>
+                  {/* Column 2: Tactical Metrics (Grid) */}
+                  <div className="grid grid-cols-2 gap-4">
+                      <CyberStat label="Total XP" value={user.totalXp.toLocaleString()} />
+                      <CyberStat label="Missions" value={user.gamesPlayed} subtext="COMPLETED" />
+                      <CyberStat label="Accuracy" value={`${dashboardStats.accuracy}%`} subtext="GLOBAL AVG" />
+                      <CyberStat label="Top Streak" value={user.highestStreak} subtext="CONSECUTIVE" />
+                      
+                      <button 
+                        onClick={startGame}
+                        className="col-span-2 group relative h-24 mt-2 bg-white text-black font-black text-2xl uppercase tracking-[0.1em] overflow-hidden transition-all hover:bg-gold-500"
+                      >
+                        <div className="absolute top-0 left-0 w-full h-[1px] bg-black/10"></div>
+                        <div className="absolute bottom-0 left-0 w-full h-[1px] bg-black/10"></div>
+                        <span className="relative z-10 flex items-center justify-center gap-3">
+                          Initialize
+                          <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </span>
+                        {/* Scanline effect on hover */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-shine"></div>
+                      </button>
                   </div>
 
-                  <p className="max-w-2xl text-lg text-gray-400 font-light leading-relaxed mb-16">
-                     Demonstrate proficiency in the programmatic ecosystem.
-                     <br />
-                     <span className="text-gold-500/80 font-mono text-sm mt-2 block">
-                       Real-time Bidding • Attribution • Yield Optimization
-                     </span>
-                  </p>
+                  {/* Column 3: Neural Lattice (Radar) */}
+                  <div className="bg-black/40 border border-gray-800 p-4 rounded-sm relative flex flex-col items-center justify-center overflow-hidden backdrop-blur-sm">
+                      {/* Decorative Circular Elements */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                          <div className="w-64 h-64 border border-gold-500/30 rounded-full border-dashed animate-[spin_10s_linear_infinite]"></div>
+                          <div className="absolute w-48 h-48 border border-emerald-500/20 rounded-full"></div>
+                      </div>
 
-                  {/* Feature Modules */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full mb-16">
-                    <div className="bg-black/40 p-6 rounded-xl border border-white/5 hover:border-gold-500/30 transition-all group backdrop-blur-sm">
-                       <div className="text-gold-500 mb-3 group-hover:scale-110 transition-transform duration-300 w-8 h-8 mx-auto"><TrophyIcon /></div>
-                       <h3 className="font-bold text-gray-200 uppercase tracking-widest text-sm mb-2">Ranked Mode</h3>
-                       <p className="text-xs text-gray-500 leading-relaxed">Compete for high-tier clearance levels.</p>
-                    </div>
-                    <div className="bg-black/40 p-6 rounded-xl border border-white/5 hover:border-gold-500/30 transition-all group backdrop-blur-sm">
-                       <div className="text-gold-500 mb-3 group-hover:scale-110 transition-transform duration-300 w-8 h-8 mx-auto"><LightningIcon /></div>
-                       <h3 className="font-bold text-gray-200 uppercase tracking-widest text-sm mb-2">Powerups</h3>
-                       <p className="text-xs text-gray-500 leading-relaxed">Deploy tactical aids during auctions.</p>
-                    </div>
-                    <div className="bg-black/40 p-6 rounded-xl border border-white/5 hover:border-gold-500/30 transition-all group backdrop-blur-sm">
-                       <div className="text-gold-500 mb-3 group-hover:scale-110 transition-transform duration-300 w-8 h-8 mx-auto"><BrainIcon /></div>
-                       <h3 className="font-bold text-gray-200 uppercase tracking-widest text-sm mb-2">AI Oracle</h3>
-                       <p className="text-xs text-gray-500 leading-relaxed">Neural network analysis of failures.</p>
-                    </div>
+                      <div className="absolute top-4 left-4 flex items-center gap-2 z-10">
+                        <BrainIcon />
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Neural Lattice</span>
+                      </div>
+
+                      <div className="w-full h-[280px] relative z-10">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RadarChart cx="50%" cy="50%" outerRadius="70%" data={displayRadarData}>
+                            <PolarGrid stroke="#333" strokeDasharray="3 3" />
+                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#666', fontSize: 9, fontWeight: 'bold', fontFamily: 'monospace' }} />
+                            <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                            <Radar
+                                name="Proficiency"
+                                dataKey="A"
+                                stroke="#eab308"
+                                strokeWidth={2}
+                                fill="#eab308"
+                                fillOpacity={0.4}
+                                isAnimationActive={true}
+                            />
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#000', borderColor: '#333', color: '#fff', fontSize: '12px' }}
+                                itemStyle={{ color: '#eab308' }}
+                            />
+                            </RadarChart>
+                        </ResponsiveContainer>
+                      </div>
                   </div>
-
-                  {/* Main Action */}
-                  <button 
-                    onClick={startGame}
-                    className="group relative px-16 py-6 bg-white text-black font-black text-xl uppercase tracking-[0.2em] rounded-full overflow-hidden transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.3)]"
-                  >
-                    <span className="relative z-10 flex items-center gap-3">
-                      Initialize Protocol
-                      <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                    </span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-gray-200 to-white opacity-0 group-hover:opacity-100 transition-opacity"></div>
+               </div>
+               
+               {/* Footer System Log */}
+               <div className="border-t border-gray-800 bg-black/60 p-3 font-mono text-[10px] text-gray-500 uppercase flex justify-between items-center relative z-10 backdrop-blur-md">
+                  <div className="flex gap-4">
+                     <span className="animate-pulse text-emerald-500">● SYSTEM ONLINE</span>
+                     <span>Latency: 12ms</span>
+                     <span>Encryption: AES-256</span>
+                  </div>
+                  <button onClick={() => {storageService.logout(); setPhase(GamePhase.AUTH);}} className="hover:text-red-500 transition-colors">
+                     [ TERMINATE SESSION ]
                   </button>
-                  
-                  <div className="mt-8 text-[10px] text-gray-600 font-mono uppercase tracking-widest">
-                     Secure Connection Established via Port 443
-                  </div>
-
                </div>
             </GlassCard>
           </div>
         )}
 
         {phase === GamePhase.RESULTS && (
-          <GlassCard className="max-w-6xl w-full space-y-12">
-            <div className="flex flex-col md:flex-row justify-between items-center border-b border-gray-700 pb-10">
-              <div className="text-left space-y-3">
-                 <h2 className="text-5xl font-bold text-white">Performance Report</h2>
-                 <p className="text-gold-500 font-mono text-base tracking-wider uppercase">End of Fiscal Year</p>
-              </div>
-              <div className="text-right mt-8 md:mt-0">
-                 <div className="text-base text-gray-400 uppercase tracking-widest mb-2">Final Clearance Level</div>
-                 <div className="text-6xl font-black text-white">{currentLevelInfo.title}</div>
-                 <div className="text-gold-500 text-3xl font-mono mt-3">{state.xp} XP Earned</div>
-              </div>
+          <GlassCard className="max-w-4xl w-full space-y-12 bg-black/40 backdrop-blur-md">
+            <div className="flex flex-col items-center text-center border-b border-gray-700 pb-10">
+                 <h2 className="text-5xl font-bold text-white mb-4">Mission Debrief</h2>
+                 <p className="text-gold-500 font-mono text-base tracking-wider uppercase">Performance Assessment Complete</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-              <div className="bg-black/30 rounded-2xl p-10 border border-white/5">
-                <h3 className="text-base font-bold uppercase text-gray-400 mb-8 tracking-wider">Yield Accuracy</h3>
-                <div className="h-72 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie 
-                        data={[{ name: 'Correct', value: state.answers.filter(a => a.isCorrect).length }, { name: 'Incorrect', value: state.answers.filter(a => !a.isCorrect).length }]} 
-                        cx="50%" cy="50%" innerRadius={70} outerRadius={90} paddingAngle={5} dataKey="value"
-                      >
-                        {state.answers.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.isCorrect ? COLORS[0] : COLORS[1]} />)}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="bg-black/30 border border-gray-800 p-8 rounded-xl text-center">
+                    <div className="text-gray-500 text-xs font-mono uppercase tracking-widest mb-2">Session XP</div>
+                    <div className="text-4xl font-bold text-white text-shadow-gold">{state.xp}</div>
+                    {(state.answers.filter(a => a.isCorrect).length === questions.length) && (
+                        <div className="text-xs text-emerald-400 mt-2 font-mono">[ PERFECT RUN BONUS ]</div>
+                    )}
                 </div>
-              </div>
-
-              <div className="bg-black/30 rounded-2xl p-10 border border-white/5">
-                <h3 className="text-base font-bold uppercase text-gray-400 mb-8 tracking-wider">Vertical Mastery</h3>
-                <div className="h-72 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={Object.keys(quizQuestions.reduce((acc: any, q) => ({...acc, [q.category]: 1}), {})).map(cat => ({
-                        name: cat,
-                        Score: (state.answers.filter((a, i) => quizQuestions[i].category === cat && a.isCorrect).length / state.answers.filter((a, i) => quizQuestions[i].category === cat).length) * 100 || 0
-                      }))}>
-                      <XAxis dataKey="name" stroke="#6b7280" fontSize={12} tickLine={false} />
-                      <YAxis hide />
-                      <Tooltip contentStyle={{ backgroundColor: '#171717', borderColor: '#404040', color: '#fff' }} />
-                      <Bar dataKey="Score" fill="#eab308" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                 <div className="bg-black/30 border border-gray-800 p-8 rounded-xl text-center">
+                    <div className="text-gray-500 text-xs font-mono uppercase tracking-widest mb-2">Accuracy</div>
+                    <div className="text-4xl font-bold text-white">
+                        {Math.round((state.answers.filter(a => a.isCorrect).length / state.answers.length) * 100) || 0}%
+                    </div>
                 </div>
-              </div>
+                 <div className="bg-black/30 border border-gray-800 p-8 rounded-xl text-center">
+                    <div className="text-gray-500 text-xs font-mono uppercase tracking-widest mb-2">New Rank</div>
+                    <div className="text-2xl font-bold text-gold-500 truncate">{hudLevelInfo.title}</div>
+                </div>
             </div>
 
             <div className="flex justify-center gap-8 mt-12">
-              <button onClick={() => setPhase(GamePhase.WELCOME)} className="px-10 py-5 rounded-xl border border-gray-600 text-gray-300 hover:bg-gray-800 transition uppercase text-base font-bold tracking-widest">Lobby</button>
-              <button onClick={startGame} className="px-10 py-5 rounded-xl bg-gold-600 text-black hover:bg-gold-500 transition shadow-lg shadow-gold-900/20 uppercase text-base font-bold tracking-widest">New Campaign</button>
+              <button onClick={() => { handleInteraction(); setPhase(GamePhase.WELCOME); }} className="px-10 py-5 rounded-xl border border-gray-600 text-gray-300 hover:bg-gray-800 transition uppercase text-base font-bold tracking-widest">Return to Base</button>
+              <button onClick={startGame} className="px-10 py-5 rounded-xl bg-gold-600 text-black hover:bg-gold-500 transition shadow-lg shadow-gold-900/20 uppercase text-base font-bold tracking-widest">Next Mission</button>
             </div>
           </GlassCard>
         )}
 
-        {phase === GamePhase.PLAYING && (
+        {phase === GamePhase.PLAYING && currentQ && (
           <div className="w-full max-w-4xl flex flex-col items-center">
             
             <div className="w-full flex justify-start mb-6">
@@ -337,31 +521,31 @@ export default function App() {
             {/* Top HUD */}
             <div className="w-full grid grid-cols-2 gap-8 mb-12">
               {/* Left: Level & XP */}
-              <div className="bg-graphite-800/90 backdrop-blur border border-gray-700 rounded-2xl p-8 flex flex-col justify-center relative overflow-hidden shadow-lg">
+              <div className="bg-graphite-800/80 backdrop-blur-md border border-gray-700 rounded-2xl p-8 flex flex-col justify-center relative overflow-hidden shadow-lg">
                 <div className="flex justify-between items-end mb-4 relative z-10">
-                  <span className="text-base text-gray-400 uppercase tracking-widest font-bold">Level {currentLevelInfo.level}</span>
-                  <span className="text-base text-gold-500 font-mono font-bold">{currentLevelInfo.title}</span>
+                  <span className="text-base text-gray-400 uppercase tracking-widest font-bold">Level {hudLevelInfo.level}</span>
+                  <span className="text-base text-gold-500 font-mono font-bold">{hudLevelInfo.title}</span>
                 </div>
                 <div className="h-4 w-full bg-gray-900 rounded-full overflow-hidden relative z-10 border border-gray-800">
                   <div className="h-full bg-gold-500 transition-all duration-500" style={{ width: `${progressToNext}%` }}></div>
                 </div>
-                <div className="text-right text-sm text-gray-500 mt-3 font-mono">{state.xp} / {currentLevelInfo.nextThreshold} XP</div>
+                <div className="text-right text-sm text-gray-500 mt-3 font-mono">{state.xp} Session XP</div>
               </div>
 
               {/* Right: Stats */}
-              <div className="bg-graphite-800/90 backdrop-blur border border-gray-700 rounded-2xl p-8 flex items-center justify-between shadow-lg">
+              <div className="bg-graphite-800/80 backdrop-blur-md border border-gray-700 rounded-2xl p-8 flex items-center justify-between shadow-lg">
                 <div className="flex flex-col">
                   <span className="text-sm text-gray-500 uppercase tracking-wider mb-2">Win Streak</span>
                   <span className={`text-4xl font-black ${state.streak > 1 ? 'text-gold-500 animate-pulse' : 'text-gray-300'}`}>x{state.streak}</span>
                 </div>
                 <div className="flex flex-col text-right">
                   <span className="text-sm text-gray-500 uppercase tracking-wider mb-2">Bid Request</span>
-                  <span className="text-4xl font-black text-white">{state.currentQuestionIndex + 1}<span className="text-gray-600 text-xl">/{quizQuestions.length}</span></span>
+                  <span className="text-4xl font-black text-white">{state.currentQuestionIndex + 1}<span className="text-gray-600 text-xl">/{questions.length}</span></span>
                 </div>
               </div>
             </div>
 
-            <GlassCard className="w-full">
+            <GlassCard className="w-full bg-black/40 backdrop-blur-md">
               <div className="mb-12 flex justify-between items-start">
                 <div className="w-full">
                   <span className="inline-block px-4 py-2 rounded-md bg-gray-800 text-sm font-bold tracking-widest text-gray-400 uppercase border border-gray-700 mb-8">{currentQ.category}</span>
@@ -395,42 +579,46 @@ export default function App() {
               </div>
 
               <div className="space-y-6">
-                {currentQ.options.map((option, index) => {
-                  if (state.hiddenOptions.includes(index)) {
-                    return (
-                      <div key={index} className="w-full p-8 rounded-xl border border-transparent bg-black/20 text-gray-800 flex justify-center items-center select-none">
-                        <span className="text-sm uppercase tracking-widest font-bold">Filtered by Algorithm</span>
-                      </div>
-                    );
-                  }
-
-                  let btnClass = "w-full p-8 rounded-xl text-left border transition-all duration-300 group relative overflow-hidden ";
-                  
-                  if (selectedOption === null) {
-                    btnClass += "bg-gradient-to-r from-gray-800 to-gray-800/50 border-gray-700 hover:border-gray-500 hover:from-gray-700 hover:pl-10 text-gray-300";
-                  } else {
-                    if (index === currentQ.correctAnswer) {
-                      btnClass += "bg-emerald-900/30 border-emerald-500/50 text-emerald-200 shadow-[0_0_25px_rgba(16,185,129,0.15)]";
-                    } else if (index === selectedOption) {
-                      btnClass += "bg-red-900/30 border-red-500/50 text-red-200";
-                    } else {
-                      btnClass += "bg-black/40 border-transparent opacity-30";
+                {currentQ.options && currentQ.options.length > 0 ? (
+                    currentQ.options.map((option, index) => {
+                    if (state.hiddenOptions.includes(index)) {
+                      return (
+                        <div key={index} className="w-full p-8 rounded-xl border border-transparent bg-black/20 text-gray-800 flex justify-center items-center select-none">
+                          <span className="text-sm uppercase tracking-widest font-bold">Filtered by Algorithm</span>
+                        </div>
+                      );
                     }
-                  }
 
-                  return (
-                    <button
-                      key={index}
-                      disabled={selectedOption !== null}
-                      onClick={() => handleAnswer(index)}
-                      className={btnClass}
-                    >
-                      <div className="flex justify-between items-center relative z-10">
-                        <span className="font-medium tracking-wide text-xl">{option}</span>
-                      </div>
-                    </button>
-                  );
-                })}
+                    let btnClass = "w-full p-8 rounded-xl text-left border transition-all duration-300 group relative overflow-hidden ";
+                    
+                    if (selectedOption === null) {
+                      btnClass += "bg-gradient-to-r from-gray-800 to-gray-800/50 border-gray-700 hover:border-gray-500 hover:from-gray-700 hover:pl-10 text-gray-300";
+                    } else {
+                      if (index === currentQ.correctAnswer) {
+                        btnClass += "bg-emerald-900/30 border-emerald-500/50 text-emerald-200 shadow-[0_0_25px_rgba(16,185,129,0.15)]";
+                      } else if (index === selectedOption) {
+                        btnClass += "bg-red-900/30 border-red-500/50 text-red-200";
+                      } else {
+                        btnClass += "bg-black/40 border-transparent opacity-30";
+                      }
+                    }
+
+                    return (
+                      <button
+                        key={index}
+                        disabled={selectedOption !== null}
+                        onClick={() => handleAnswer(index)}
+                        className={btnClass}
+                      >
+                        <div className="flex justify-between items-center relative z-10">
+                          <span className="font-medium tracking-wide text-xl">{option}</span>
+                        </div>
+                      </button>
+                    );
+                  })
+                ) : (
+                    <div className="text-red-500">Error: Options data unavailable.</div>
+                )}
               </div>
 
               {showExplanation && (
@@ -467,7 +655,7 @@ export default function App() {
                     onClick={nextQuestion}
                     className="mt-10 w-full py-6 bg-gray-200 text-black font-bold uppercase tracking-widest rounded-xl hover:bg-white transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
                   >
-                    {state.currentQuestionIndex < quizQuestions.length - 1 ? 'Next Lot' : 'Finalize Report'}
+                    {state.currentQuestionIndex < questions.length - 1 ? 'Next Lot' : 'Finalize Report'}
                   </button>
                 </div>
               )}
