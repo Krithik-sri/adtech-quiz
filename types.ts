@@ -1,3 +1,4 @@
+
 export interface Question {
   id: number;
   category: string;
@@ -21,9 +22,23 @@ export interface User {
   categoryStats: Record<string, CategoryStat>;
 }
 
-export interface PowerupInventory {
-  fiftyFifty: number;
-  doubleBid: number;
+export type UpgradeType = 
+  | 'SPREAD_SHOT' 
+  | 'RAPID_FIRE' 
+  | 'YIELD_OPTIMIZER' 
+  | 'FIREWALL' 
+  | 'AUTOBIDDER' 
+  | 'BLOATWARE'        // Trap: Slows movement
+  | 'MANAGED_SERVICE'  // Trap: High CPM cost
+  | 'TRAFFIC_BOOSTER'; // Trap: More bots
+
+export interface Upgrade {
+  id: UpgradeType;
+  name: string;
+  description: string;
+  rarity: 'COMMON' | 'RARE' | 'LEGENDARY' | 'SPONSORED';
+  icon: string;
+  maxStacks?: number; // If defined, can only have this many. Default is unlimited.
 }
 
 export interface QuizState {
@@ -34,9 +49,8 @@ export interface QuizState {
   answers: { questionId: number; isCorrect: boolean; timeTaken: number; category: string }[];
   isFinished: boolean;
   gameStarted: boolean;
-  powerups: PowerupInventory;
-  hiddenOptions: number[]; // Indices of options hidden by 50/50
-  activeMultiplier: boolean; // Is Double Bid active for current Q?
+  activeUpgrades: UpgradeType[]; // New: Track collected upgrades
+  activeMultiplier: boolean; 
 }
 
 export enum GamePhase {

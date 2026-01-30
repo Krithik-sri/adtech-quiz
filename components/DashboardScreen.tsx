@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { User, CategoryStat } from '../types';
 import { GlassCard } from './GlassCard';
@@ -8,6 +9,7 @@ import { ResponsiveContainer, Tooltip, Radar, RadarChart, PolarGrid, PolarAngleA
 interface DashboardScreenProps {
   user: User;
   onStartGame: () => void;
+  onLogout: () => void;
 }
 
 const BrainIcon = () => (
@@ -16,7 +18,7 @@ const BrainIcon = () => (
   </svg>
 );
 
-export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onStartGame }) => {
+export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onStartGame, onLogout }) => {
   const stats = useMemo(() => {
     const nextLevel = getLevelInfo(user.totalXp);
     const currentLevelBaseXP = LEVEL_THRESHOLDS[nextLevel.level - 1] || 0;
@@ -109,7 +111,28 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onStartG
               </div>
           </div>
         </div>
+
+        {/* Footer Bar */}
+        <div className="border-t border-gold-500/20 bg-black/40 p-4 flex flex-col md:flex-row justify-between items-center backdrop-blur-md gap-4">
+            <div className="text-[10px] text-gray-500 font-mono flex items-center gap-2">
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+              SYSTEM STATUS: <span className="text-emerald-500">OPTIMAL</span>
+            </div>
+            
+            <button 
+              onClick={onLogout}
+              className="group flex items-center gap-2 px-4 py-2 hover:bg-red-900/20 rounded-sm transition-colors border border-transparent hover:border-red-900/50"
+            >
+              <span className="text-[10px] font-mono text-red-700 uppercase tracking-widest group-hover:text-red-500 transition-colors">Terminate Session</span>
+              <svg className="w-3 h-3 text-red-800 group-hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+            </button>
+        </div>
       </GlassCard>
+
+      {/* Page Footer */}
+      <div className="mt-8 text-center opacity-40 hover:opacity-100 transition-opacity duration-500">
+        <p className="text-[10px] font-mono text-gold-500/50 uppercase tracking-[0.3em]">AdTech Master v1.0.4 // Authorized Personnel Only</p>
+      </div>
     </div>
   );
 };
