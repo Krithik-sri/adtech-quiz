@@ -195,5 +195,200 @@ export const quizQuestions: Question[] = [
     ],
     correctAnswer: 0,
     explanation: "Frequency capping ensures a user isn't annoyed by seeing the same ad too many times, improving user experience and ROI."
+  },
+  {
+    id: 16,
+    category: "Metrics",
+    question: "What is the IAB/MRC standard for a 'Viewable' display impression?",
+    options: [
+      "50% of pixels in view for 1 continuous second",
+      "100% of pixels in view for 1 second",
+      "50% of pixels in view for 2 continuous seconds",
+      "Any part of the ad is visible"
+    ],
+    correctAnswer: 0,
+    explanation: "The industry standard (MRC) states a display ad is viewable if 50% of its pixels are in view for at least 1 continuous second."
+  },
+  {
+    id: 17,
+    category: "Privacy",
+    question: "Which regulation primarily protects the data privacy of EU citizens?",
+    options: [
+      "CCPA",
+      "GDPR",
+      "COPPA",
+      "HIPAA"
+    ],
+    correctAnswer: 1,
+    explanation: "GDPR (General Data Protection Regulation) is the comprehensive data privacy law protecting individuals in the European Union."
+  },
+  {
+    id: 18,
+    category: "Data",
+    question: "What is 'First-Party Data'?",
+    options: [
+      "Data purchased from a data broker.",
+      "Data collected directly from your own customers/audience.",
+      "Data shared between two non-competing companies.",
+      "Anonymized data from an ad exchange."
+    ],
+    correctAnswer: 1,
+    explanation: "First-party data is information you collect directly from your audience (e.g., website visitors, CRM), making it highly valuable and accurate."
+  },
+  {
+    id: 19,
+    category: "Buying",
+    question: "In a Private Marketplace (PMP), who is allowed to bid?",
+    options: [
+      "Anyone with a DSP.",
+      "Only invited buyers via a Deal ID.",
+      "Only the publisher's internal team.",
+      "Search engines only."
+    ],
+    correctAnswer: 1,
+    explanation: "PMPs are invitation-only auctions where publishers invite specific buyers to bid on high-quality inventory using a unique Deal ID."
+  },
+  {
+    id: 20,
+    category: "Tech",
+    question: "What does 'SPO' stand for in AdTech?",
+    options: [
+      "Supply Path Optimization",
+      "Static Page Optimization",
+      "Server Pacing Option",
+      "Standard Protocol Output"
+    ],
+    correctAnswer: 0,
+    explanation: "SPO helps buyers find the most efficient and cost-effective route to access inventory, cutting out unnecessary intermediaries."
+  },
+  {
+    id: 21,
+    category: "Industry",
+    question: "Which companies are commonly referred to as 'Walled Gardens'?",
+    options: [
+      "The Open Web (CNN, NYT, etc.)",
+      "Google, Facebook (Meta), Amazon",
+      "SSPs like Magnite and PubMatic",
+      "Ad Networks"
+    ],
+    correctAnswer: 1,
+    explanation: "Walled Gardens like Google and Meta have closed ecosystems where they control the tech, the data, and the media, making independent verification harder."
+  },
+  {
+    id: 22,
+    category: "Targeting",
+    question: "What is a 'Lookalike Audience'?",
+    options: [
+      "Users who look physically similar to models in ads.",
+      "A group of users who share similar characteristics/behaviors to your existing customers.",
+      "People who have visited your site before.",
+      "Bots that mimic human behavior."
+    ],
+    correctAnswer: 1,
+    explanation: "Lookalike modeling uses seed data (like your best customers) to find new people who behave similarly, expanding reach effectively."
+  },
+  {
+    id: 23,
+    category: "Metrics",
+    question: "If you spent $500 and got 50 clicks, what is your CPC?",
+    options: [
+      "$0.10",
+      "$10.00",
+      "$5.00",
+      "$2.50"
+    ],
+    correctAnswer: 1,
+    explanation: "CPC = Total Cost / Total Clicks. $500 / 50 = $10.00."
+  },
+  {
+    id: 24,
+    category: "Tech",
+    question: "What is the difference between client-side and server-side header bidding?",
+    options: [
+      "Client-side runs in the browser; server-side runs on a remote server.",
+      "Client-side is faster.",
+      "Server-side uses cookies; client-side does not.",
+      "There is no difference."
+    ],
+    correctAnswer: 0,
+    explanation: "Client-side happens in the user's browser (can slow page load), while server-side moves the auction to the cloud (faster but less cookie matching)."
+  },
+  {
+    id: 25,
+    category: "Fraud",
+    question: "What is 'Domain Spoofing'?",
+    options: [
+      "Hacking a website's homepage.",
+      "Falsely representing low-quality inventory as a premium site (e.g., NYTimes.com) to trick buyers.",
+      "Stealing a domain name.",
+      "Blocking ads on a domain."
+    ],
+    correctAnswer: 1,
+    explanation: "Fraudsters trick buyers into thinking they are buying premium slots (like NYTimes.com) when the ad actually runs on a low-quality site."
+  },
+  {
+    id: 26,
+    category: "Creative",
+    question: "What defines 'Native Advertising'?",
+    options: [
+      "Ads that pop up in a new window.",
+      "Ads that match the look, feel, and function of the media format in which they appear.",
+      "Video ads that autoplay.",
+      "Ads targeted to native speakers."
+    ],
+    correctAnswer: 1,
+    explanation: "Native ads blend in with the surrounding content (like a 'Sponsored' article in a news feed), often leading to higher engagement."
+  },
+  {
+    id: 27,
+    category: "Attribution",
+    question: "What is 'Multi-Touch Attribution' (MTA)?",
+    options: [
+      "Giving credit to every click equally.",
+      "Assigning fractional credit to multiple touchpoints along the customer journey.",
+      "Tracking users across multiple screens.",
+      "Using multiple fingers to click an ad."
+    ],
+    correctAnswer: 1,
+    explanation: "MTA acknowledges that a user might see a banner, click a search ad, and then convert, assigning value to each step rather than just the last one."
+  },
+  {
+    id: 28,
+    category: "Buying",
+    question: "What is a 'Deal ID'?",
+    options: [
+      "A discount code for advertisers.",
+      "A unique identifier representing a pre-negotiated agreement between a buyer and seller.",
+      "The login password for a DSP.",
+      "The ID of a specific creative."
+    ],
+    correctAnswer: 1,
+    explanation: "A Deal ID is a string of characters attached to a bid request that signals a special arrangement (like a PMP or Preferred Deal) to the buyer."
+  },
+  {
+    id: 29,
+    category: "Metrics",
+    question: "What does 'CTR' calculate?",
+    options: [
+      "Conversions per Impression.",
+      "Cost per Transaction.",
+      "The percentage of impressions that resulted in a click.",
+      "Clicks to Revenue ratio."
+    ],
+    correctAnswer: 2,
+    explanation: "CTR (Click-Through Rate) = (Clicks / Impressions) * 100. It measures how often people who see your ad end up clicking it."
+  },
+  {
+    id: 30,
+    category: "Basics",
+    question: "Who typically pays the 'Ad Tech Tax'?",
+    options: [
+      "The user.",
+      "The government.",
+      "The advertiser and publisher (via intermediaries taking a cut).",
+      "The internet service provider."
+    ],
+    correctAnswer: 2,
+    explanation: "The 'tax' refers to the percentage of the advertiser's dollar that goes to tech middlemen (DSPs, SSPs, exchanges) rather than the publisher."
   }
 ];
